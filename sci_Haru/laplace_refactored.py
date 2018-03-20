@@ -1,75 +1,100 @@
 import numpy as np
 from scipy.sparse import csc_matrix
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 import time
 
-class SquareCartesianMesh:
+class CartesianGrid:
+    """
+        Simple class to generate a computational grid and apply boundary conditions
+    """
 
-    def __init__(self, length, n):
-        self.length_x = length
-        self.length_y = length
-        self.nx = n
-        self.ny = n
-        self.ntotal = self.nx*self.ny
+    def __init__(self, nx=10, ny=10, xmin=0.0, xmax=1.0, ymin=0.0, ymax=0.0):
+        self.nx, self.ny = nx, ny
+        self.ntotal = nx*ny
 
-    def meshgrid(self):
-        self.xgv = np.linspace(0.0, self.length_x, self.nx)
-        self.ygv = np.linspace(0.0, self.length_y, self.ny)
-        return np.meshgrid(self.xgv, self.ygv)
+        self.xmin, self.xmax = xmin, xmax
+        self.ymin, self.ymax = ymin, ymax
+
+        self.dx = (xmax - xmin)/(nx - 1)
+        self.dy = (ymax - ymin)/(ny - 1)
+
+        self.x = np.arange(xmin, xmax + 0.5*self.dx, self.dx)
+        self.y = np.arange(ymin, ymax + 0.5*self.dy, self.dy)
 
     def create_field(self):
-        s = (self.ny, self.nx)
-        return np.zeros(s)
+        return np.zeros((self.nx, self.ny), dtype=np.float)
+
+    def create_meshgrid(self):
+        return np.meshgrid(self.x, self.y, indexing='ij')
+
+    def set_boundary_condition(self, u, side='top', boundary_condition_function=lambda x,y: 0.0):
+        if side == 'top':
+            u[:,-1] = boundary_condition_function(self.x, self.ymax)
+        elif side == 'bottom':
+            u[:,0] = boundary_condition_function(self.x, self.ymin)
+        elif side == 'left':
+            u[0,:] = boundary_condition_function(self.xmin, self.y)
+        elif side == 'right':
+            u[-1,:] = boundary_condition_function(self.xmax, self.y)
+        else:
+            print("side must be top, bottom, left, or right")
 
     def convert_to_1d_array(self, x):
         return x.reshape(self.ntotal, 1)
 
     def convert_to_2d_array(self, x):
-        return x.reshape(self.ny, self.nx)
+        return x.reshape(self.nx, self.ny)
 
-def calc_jacobi_matrix(nx, ny):
+    def index(self, i, j):
+        return i*self.nx + j
+
+    def is_boundary(self, i, j):
+        if i == 0 or i == self.nx - 1 or j == 0 or j == self.ny - 1:
+            return True
+        else:
+            return False
+
+def calc_jacobi_matrix(mesh):
+    """
+        Create sparse matrix for Jacobi method
+    """
 
     row_index = []
     col_index = []
     value = []
 
-    def is_boundary(i, j):
-        if i == 0 or i == ny - 1 or j == 0 or j == nx - 1:
-            return True
-        else:
-            return False
-
-    for i in range(ny):
-        for j in range(nx):
-            k = i*nx + j
-            if is_boundary(i, j):
+    for i in range(mesh.nx):
+        for j in range(mesh.ny):
+            k = mesh.index(i, j)
+            if mesh.is_boundary(i, j):
                 row_index.append(k)
                 col_index.append(k)
                 value.append(1.0)
             else:
                 row_index.append(k)
-                col_index.append(k - nx)
+                col_index.append(mesh.index(i - 1, j))
                 value.append(0.25)
 
                 row_index.append(k)
-                col_index.append(k - 1)
+                col_index.append(mesh.index(i + 1, j))
                 value.append(0.25)
 
                 row_index.append(k)
-                col_index.append(k + 1)
+                col_index.append(mesh.index(i, j - 1))
                 value.append(0.25)
 
                 row_index.append(k)
-                col_index.append(k + nx)
+                col_index.append(mesh.index(i, j + 1))
                 value.append(0.25)
 
-    ntotal = nx*ny
-    s = (ntotal, ntotal)
+    s = (mesh.ntotal, mesh.ntotal)
     return csc_matrix((value, (row_index, col_index)), s)
 
 class IterationControl:
+    """
+        Class to control iteration loop
+    """
 
     def __init__(self, max_iter, info_interval, tolerance):
         self.max_iter = max_iter
@@ -99,16 +124,15 @@ class IterationControl:
 
 def solve_laplace_eq():
 
-    mesh = SquareCartesianMesh(10.0, 100)
+    mesh = CartesianGrid(100, 100, 0.0, 10.0, 0.0, 10.0)
 
     phi = mesh.create_field()
 
     # set boundary condition for y = 0
-    # phi is always 0 for other boundaries
-    phi[0,:] = 5.0
+    mesh.set_boundary_condition(phi, side='bottom', boundary_condition_function=lambda x,y:5.0)
     phi = mesh.convert_to_1d_array(phi)
 
-    A = calc_jacobi_matrix(mesh.nx, mesh.ny)
+    A = calc_jacobi_matrix(mesh)
 
     iter_control = IterationControl(1500, 100, 1e-3)
 
@@ -129,21 +153,17 @@ def solve_laplace_eq():
     # reshape for surface plotting
     phi = mesh.convert_to_2d_array(phi)
     # create mesh grid for surface plot
-    x, y = mesh.meshgrid()
+    x, y = mesh.create_meshgrid()
 
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
+    fig, ax = plt.subplots()
+    surf = ax.contourf(x, y, phi, cmap=cm.coolwarm)
     ax.set_xlabel('x')
     ax.set_ylabel('y')
-    ax.set_zlabel('$\phi$')
-
-    # plot the surface
-    surf = ax.plot_surface(x, y, phi, cmap=cm.coolwarm, linewidth=0)
 
     # add a color bar
     fig.colorbar(surf, shrink=0.5, aspect=5)
 
-    plt.show()
+    fig.savefig("phi.png")
 
 if __name__=='__main__':
     solve_laplace_eq()
