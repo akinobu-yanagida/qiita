@@ -16,30 +16,30 @@ int main() {
   constexpr auto pendulum_mass              = 2.0;
   constexpr auto drag_coeff                 = 0.02;
 
-  const auto& dt     = delta_time;
-  const auto& theta0 = initial_angle;
-  const auto& g      = gravitational_acceleration;
-  const auto& l      = pendulum_length;
-  const auto& m      = pendulum_mass;
-  const auto& k      = drag_coeff;
+  const auto& dt = delta_time;
+  const auto& x0 = initial_angle;
+  const auto& g  = gravitational_acceleration;
+  const auto& l  = pendulum_length;
+  const auto& m  = pendulum_mass;
+  const auto& k  = drag_coeff;
 
   const auto ndata = ceil((end_time - start_time) / dt);
 
   std::vector<double> time_series;
-  std::vector<double> theta_series;
+  std::vector<double> angle_series;
   time_series.reserve(ndata);
-  theta_series.reserve(ndata);
+  angle_series.reserve(ndata);
 
-  auto t         = start_time;
-  auto theta     = theta0;
-  auto dtheta_dt = 0.0;
+  auto t = start_time;
+  auto x = x0;
+  auto v = 0.0;
 
   while (t < end_time) {
     // Equation of motion for a single pendulum with a drag force
-    const auto d2theta_dt2 = -g / l * sin(theta) - k / m * dtheta_dt;
-    dtheta_dt += d2theta_dt2 * dt;
-    theta += dtheta_dt * dt;
-    theta_series.push_back(theta);
+    const auto a = -g / l * sin(x) - k / m * v;
+    v += a * dt;
+    x += v * dt;
+    angle_series.push_back(x);
     time_series.push_back(t);
     t += dt;
   };
@@ -47,6 +47,6 @@ int main() {
   std::ofstream fo("single_pendulum.txt");
   fo << "time [s],angle [deg]" << std::endl;
   for (size_t i = 0; i < time_series.size(); ++i)
-    fo << time_series[i] << "," << rad2deg(theta_series[i]) << std::endl;
+    fo << time_series[i] << "," << rad2deg(angle_series[i]) << std::endl;
   fo.close();
 }
