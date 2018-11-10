@@ -21,21 +21,14 @@ std::unique_ptr<sparse_solver_interface> make_sparse_solver(
     else if (preconditioner == "SimplicialCholesky")
       return make_unique<sparse_solver<BiCGSTAB<
           SparseMatrix<double>, SimplicialCholesky<SparseMatrix<double>>>>>();
-    else if (preconditioner.empty()) {
+    else {
       std::stringstream ss;
-      ss << "Error: " << __FILE__ << ": " << __LINE__
-         << "\n  Empty preconditioner for BiCGSTAB sparse solver passed\n"
-         << "  Valid preconditioners are:\n"
-         << "    SimplicialCholesky,\n"
-         << "    IncompleteLUT,\n"
-         << "    Diagonal,\n"
-         << "    Identity" << std::endl;
-      throw std::invalid_argument(ss.str());
-    } else {
-      std::stringstream ss;
-      ss << "Error: " << __FILE__ << ": " << __LINE__
-         << "\n  Invalid preconditioner: " << preconditioner
-         << "\n  Valid preconditioners are:\n"
+      ss << "Error: " << __FILE__ << ": " << __LINE__;
+      if (preconditioner.empty())
+        ss << "\n  Empty preconditioner found\n";
+      else
+        ss << "\n  Invalid preconditioner found: " << preconditioner << "\n";
+      ss << "  Valid preconditioners are:\n"
          << "    SimplicialCholesky,\n"
          << "    IncompleteLUT,\n"
          << "    Diagonal,\n"
@@ -50,7 +43,7 @@ std::unique_ptr<sparse_solver_interface> make_sparse_solver(
   else {
     std::stringstream ss;
     ss << "Error: " << __FILE__ << ": " << __LINE__
-       << "\n  Invalid sparse solver type: " << type
+       << "\n  Invalid sparse solver type found: " << type
        << "\n  Valid sparse solver types are:\n"
        << "    BiCGSTAB,\n"
        << "    SparseQR,\n"
